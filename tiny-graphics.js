@@ -471,7 +471,7 @@ class Webgl_Manager      // This class manages a whole graphics program for one 
         || w.mozRequestAnimationFrame || w.oRequestAnimationFrame || w.msRequestAnimationFrame
         || function( callback, element ) { w.setTimeout(callback, 1000/60);  } )( window );
     }
-  set_size( dimensions = [ 1080, 600 ] )                // This function allows you to re-size the canvas anytime.  
+  set_size( dimensions = [ 1600, 800 ] )                // This function allows you to re-size the canvas anytime.  1080, 600
     { const [ width, height ] = dimensions;             // To work, it must change the size in CSS, wait for style to re-flow, 
       this.canvas.style[ "width" ]  =  width + "px";    // and then change the size in canvas attributes.
       this.canvas.style[ "height" ] = height + "px";     
@@ -564,17 +564,19 @@ class Canvas_Widget                    // Canvas_Widget embeds a WebGL demo onto
 { constructor( element, scenes, show_controls = true )   // One panel exists per each scene that's used in the canvas.  You can use up
     { this.create( element, scenes, show_controls )      // to 16 Canvas_Widgets; browsers support up to 16 WebGL contexts per page.    
 
-      const rules = [ ".canvas-widget { width: 1080px; background: DimGray }",
+      const rules = [ ".canvas-widget { width: 1600px; background: DimGray }",
                       ".canvas-widget * { font-family: monospace }",
-                      ".canvas-widget canvas { width: 1080px; height: 600px; margin-bottom:-3px }",
+                      ".canvas-widget canvas { width: 1600px; height: 600px; margin-bottom:-3px }",
                       ".canvas-widget div { background: white }",
                       ".canvas-widget table { border-collapse: collapse; display:block; overflow-x: auto; }",
-                      ".canvas-widget table.control-box { width: 1080px; border:0; margin:0; max-height:380px; transition:.5s; overflow-y:scroll; background:DimGray }",
+                      ".canvas-widget table.control-box { width: 1600px; border:0; margin:0; max-height:380px; transition:.5s; overflow-y:scroll; background:DimGray }",
+                      ".canvas-widget table.control-box td { width: 1600px }",
                       ".canvas-widget table.control-box:hover { max-height:500px }",
                       ".canvas-widget table.control-box td { overflow:hidden; border:0; background:DimGray; border-radius:30px }",
                       ".canvas-widget table.control-box td .control-div { background: #EEEEEE; height:338px; padding: 5px 5px 5px 30px; box-shadow: 25px 0px 60px -15px inset }",
                       ".canvas-widget table.control-box td * { background:transparent }",
                       ".canvas-widget table.control-box .control-div td { border-radius:unset }",
+                      ".canvas-widget table.control-box .control-div .live_string { font-size: 32px }",
                       ".canvas-widget table.control-box .control-title { padding:7px 40px; color:white; background:DarkSlateGray; box-shadow: 25px 0px 70px -15px inset black }",
                       ".canvas-widget *.live_string { display:inline-block; background:unset }",
                       ".dropdown { display:inline-block }",
