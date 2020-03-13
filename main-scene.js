@@ -7,14 +7,12 @@ class Cube_Runner extends Scene_Component {
         context.globals.graphics_state.projection_transform = Mat4.perspective(Math.PI/4, r, .1, 1000 );
         const shapes = { 
             box:   new Cube(), 
-            axis:  new Axis_Arrows(),
             player: new Player(),
             subsphere: new Subdivision_Sphere(3) 
         }
         this.submit_shapes( context, shapes );
         this.context = context;
         this.materials = { 
-            phong: context.get_instance(Phong_Shader).material( Color.of( 1,1,0,1 ) ),
             box: context.get_instance(Texture_Fade).material(Color.of(Math.random(), Math.random(), Math.random(), 1), {ambient: 0, diffusivity: 0.1, specularity: 1}),
             player: context.get_instance(Phong_Shader).material(Color.of(Math.random(), Math.random(), Math.random(), 1)),
             explosion: context.get_instance(Explode_Shader).material(Color.of(1,1,1,1), {ambient: 0.7, diffusivity: 0.2, specularity: 0.3})
