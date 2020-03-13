@@ -119,6 +119,7 @@ class Cube_Runner extends Scene_Component {
     }
     display_dying(graphics_state, t, dt) {
         this.manage_obstacles(graphics_state, t, dt, 0);
+        this.add_interval = 0.1;
         if (graphics_state.start_time == -1) graphics_state.start_time = t;
         if (this.explosion_scale < 7) this.draw_explosion(graphics_state, t, dt);
         else {
