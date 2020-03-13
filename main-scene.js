@@ -8,14 +8,16 @@ class Cube_Runner extends Scene_Component {
         const shapes = { 
             box:   new Cube(), 
             axis:  new Axis_Arrows(),
-            player: new Player()
+            player: new Player(),
+            subsphere: new Subdivision_Sphere(3) 
         }
         this.submit_shapes( context, shapes );
         this.context = context;
         this.materials = { 
             phong: context.get_instance(Phong_Shader).material( Color.of( 1,1,0,1 ) ),
             box: context.get_instance(Texture_Fade).material(Color.of(Math.random(), Math.random(), Math.random(), 1), {ambient: 0, diffusivity: 0.1, specularity: 1}),
-            player: context.get_instance(Phong_Shader).material(Color.of(Math.random(), Math.random(), Math.random(), 1))
+            player: context.get_instance(Phong_Shader).material(Color.of(Math.random(), Math.random(), Math.random(), 1)),
+            explosion: context.get_instance(Explode_Shader).material(Color.of(1,1,1,1), {ambient: 0.7, diffusivity: 0.2, specularity: 0.3})
         }
         this.lights = [ new Light( Vec.of( 0,2,20,1 ), Color.of( 1,1,1,1 ), 100000 ) ];
         this.initial_player_transform = Mat4.identity().times(Mat4.translation([0,1,0])).times(Mat4.rotation(Math.PI/2, Vec.of(-1, 0, 0)));
@@ -24,7 +26,8 @@ class Cube_Runner extends Scene_Component {
         this.obstacle_transforms = [];
         this.game_state = "START";
         this.state_strs = {"START"   : "Press either key to start.", //used to determine which menu text to draw, based on game state. 
-                           "PLAYING" : "", 
+                           "PLAYING" : "",
+                           "DYING": "",
                            "DEAD" : "You died! Press either key to start again."}; 
         this.last_added = 0; //time (seconds in float) when the last obstacle was added
         this.add_interval = 0.1; //how frequently an obstacle should be added
@@ -39,13 +42,14 @@ class Cube_Runner extends Scene_Component {
         this.camera_lag = 0.6;
         this.game_started = false;
         this.game_started_time = 0; 
+        this.explosion_scale = 0.1; 
     }
     change_colors() {
         this.materials.box = this.context.get_instance(Texture_Fade).material(Color.of(Math.random(), Math.random(), Math.random(), 1), {ambient: 0, diffusivity: 0.1, specularity: 1}),
         this.materials.player = this.context.get_instance(Phong_Shader).material(Color.of(Math.random(), Math.random(), Math.random(), 1));
     }
     add_obstacle() {
-        let obstacle = Mat4.identity().times(Mat4.translation([(Math.random()*200-100)+this.player_transform[0][3], 1, -60]));
+        let obstacle = Mat4.identity().times(Mat4.translation([(Math.random()*200-100)+this.player_transform[0][3], 1, -80]));
         this.obstacle_transforms.push(obstacle);
     }
     make_control_panel() { 
@@ -83,7 +87,7 @@ class Cube_Runner extends Scene_Component {
         }
         return 0;
     }
-    manage_obstacles(graphics_state, t, dt) {
+    manage_obstacles(graphics_state, t, dt, still) {
     	//add obstacle every other interval only when 5 seconds has passed after drawing the funnel
         if ((t > this.last_added +this.add_interval) && (t - this.game_started_time > 4 || this.game_state === "START")) { //allow 
             this.last_added = t;
@@ -92,7 +96,7 @@ class Cube_Runner extends Scene_Component {
         var invisible_obstacles = [];
         //draw obstacles
         for (var i = 0; i < this.obstacle_transforms.length; i++) {
-            this.obstacle_transforms[i] = this.obstacle_transforms[i].times(Mat4.translation([0,0,24*dt]));
+            this.obstacle_transforms[i] = this.obstacle_transforms[i].times(Mat4.translation([0,0,24*(still*dt)]));
             this.shapes.box.draw(graphics_state, this.obstacle_transforms[i], this.materials.box);
             if (this.obstacle_transforms[i][2][3] >= 7) invisible_obstacles.push(i); 
         }
@@ -109,8 +113,27 @@ class Cube_Runner extends Scene_Component {
             this.obstacle_transforms.push(obstacle);
         }
     }
+    draw_explosion(graphics_state, t, dt) {
+       var ss = this.shapes.subsphere;
+       var scale = this.explosion_scale; 
+       ss.draw(graphics_state, this.player_transform.times(Mat4.scale([scale, scale, scale])), this.materials.explosion);
+       this.explosion_scale = Math.min(scale*(1+20*dt), 7);
+    }
+    display_dying(graphics_state, t, dt) {
+        this.manage_obstacles(graphics_state, t, dt, 0);
+        if (graphics_state.start_time == -1) graphics_state.start_time = t;
+        if (this.explosion_scale < 7) this.draw_explosion(graphics_state, t, dt);
+        else {
+            graphics_state.start_time = -1;
+            this.game_state = "DEAD";
+            this.player_transform = this.initial_player_transform;
+            return; 
+        }
+    }
     display_idle(graphics_state, t, dt) {
-        this.manage_obstacles(graphics_state, t, dt);
+        var still; 
+        if (this.game_state != "DEAD") still = 1;
+        this.manage_obstacles(graphics_state, t, dt, still);
         //update state 
         if (!this.input_lock && this.dir != 0) {
         	this.game_state = "PLAYING";
@@ -126,7 +149,7 @@ class Cube_Runner extends Scene_Component {
             this.draw_funnel();
             this.game_started = false;
         } 
-        this.manage_obstacles(graphics_state, t, dt);
+        this.manage_obstacles(graphics_state, t, dt, 1);
         //draw player and obstacles 
         this.shapes.player.draw(graphics_state, this.player_transform, this.materials.player);
         
@@ -139,10 +162,10 @@ class Cube_Runner extends Scene_Component {
         if (this.detect_collision(new_spd)) {
             if (this.highest < this.score) this.highest = this.score;
             //update state and reset score/colors/player transformation matrix
-            this.player_transform = this.initial_player_transform;
             this.player_spd = 0.;  
             this.score = 0;
-            this.game_state = "DEAD";
+            this.explosion_scale = 0.1;
+            this.game_state = "DYING";
             this.change_colors(); 
             return;  
         }
@@ -162,7 +185,11 @@ class Cube_Runner extends Scene_Component {
     display( graphics_state ) {
     	graphics_state.lights = this.lights;        // Use the lights stored in this.lights.
         const t = graphics_state.animation_time / 1000, dt = graphics_state.animation_delta_time / 1000;
-        this.game_state == "PLAYING" ? this.display_playing(graphics_state, t, dt) : this.display_idle(graphics_state, t, dt);
+        switch(this.game_state) {
+            case "PLAYING": this.display_playing(graphics_state, t, dt); break;
+            case "DYING": this.display_dying(graphics_state, t, dt); break; 
+            default: this.display_idle(graphics_state, t, dt); break; 
+        }
         this.input_lock = (this.dir != 0); 
       }
   }
@@ -180,10 +207,69 @@ class Texture_Fade extends Phong_Shader
                                             // Phong shading is not to be confused with the Phong Reflection Model.
           vec4 tex_color = texture2D( texture, f_tex_coord );                         // Sample the texture image in the correct place.
                                                                                       // Compute an initial (ambient) color:
-          if( USE_TEXTURE ) gl_FragColor = vec4( ( tex_color.xyz + shapeColor.xyz ) * ambient, shapeColor.w * tex_color.w ); 
-          else gl_FragColor = vec4( shapeColor.xyz * ambient, shapeColor.w );
+          gl_FragColor = vec4( shapeColor.xyz * ambient, shapeColor.w );
           gl_FragColor.xyz += phong_model_lights( N );                     // Compute the final color with contributions from lights.
         }`;
+    }
+}
+class Explode_Shader extends Phong_Shader
+{ fragment_glsl_code()           // ********* FRAGMENT SHADER ********* 
+    {
+      return `
+        uniform sampler2D texture;
+        uniform float start_time; 
+        void main()
+        { if( GOURAUD || COLOR_NORMALS )    // Do smooth "Phong" shading unless options like "Gouraud mode" are wanted instead.
+          { gl_FragColor = VERTEX_COLOR;    // Otherwise, we already have final colors to smear (interpolate) across vertices.            
+            return;
+          }                                 // If we get this far, calculate Smooth "Phong" Shading as opposed to Gouraud Shading.
+                                            // Phong shading is not to be confused with the Phong Reflection Model.
+          vec4 tex_color = texture2D( texture, f_tex_coord );                         // Sample the texture image in the correct place.
+                                                                                      // Compute an initial (ambient) color:
+          
+          float time = (animation_time - start_time);
+          float redshift = 0.0;                                               
+          gl_FragColor = vec4(shapeColor.xyz * ambient, shapeColor.w );
+          gl_FragColor.xyz += phong_model_lights( N );
+          if (gl_FragColor[1] <= 0.5 && gl_FragColor[2] <= 0.5) redshift = 4.1*time;
+          gl_FragColor.xyz += vec3(-redshift, -2.0*time, -2.9*time);
+          
+        }`;
+    }
+
+    update_GPU( g_state, model_transform, material, gpu = this.g_addrs, gl = this.gl )
+    {                              // First, send the matrices to the GPU, additionally cache-ing some products of them we know we'll need:
+      this.update_matrices( g_state, model_transform, gpu, gl );
+      gl.uniform1f ( gpu.animation_time_loc, g_state.animation_time / 1000 );
+      gl.uniform1f ( gpu.start_time_loc, g_state.start_time);
+
+      if( g_state.gouraud === undefined ) { g_state.gouraud = g_state.color_normals = false; }    // Keep the flags seen by the shader 
+      gl.uniform1i( gpu.GOURAUD_loc,        g_state.gouraud || material.gouraud );                // program up-to-date and make sure 
+      gl.uniform1i( gpu.COLOR_NORMALS_loc,  g_state.color_normals );                              // they are declared.
+
+      gl.uniform4fv( gpu.shapeColor_loc,     material.color       );    // Send the desired shape-wide material qualities 
+      gl.uniform1f ( gpu.ambient_loc,        material.ambient     );    // to the graphics card, where they will tweak the
+      gl.uniform1f ( gpu.diffusivity_loc,    material.diffusivity );    // Phong lighting formula.
+      gl.uniform1f ( gpu.specularity_loc,    material.specularity );
+      gl.uniform1f ( gpu.smoothness_loc,     material.smoothness  );
+
+      if( material.texture )                           // NOTE: To signal not to draw a texture, omit the texture parameter from Materials.
+      { gpu.shader_attributes["tex_coord"].enabled = true;
+        gl.uniform1f ( gpu.USE_TEXTURE_loc, 1 );
+        gl.bindTexture( gl.TEXTURE_2D, material.texture.id );
+      }
+      else  { gl.uniform1f ( gpu.USE_TEXTURE_loc, 0 );   gpu.shader_attributes["tex_coord"].enabled = false; }
+
+      if( !g_state.lights.length )  return;
+      var lightPositions_flattened = [], lightColors_flattened = [], lightAttenuations_flattened = [];
+      for( var i = 0; i < 4 * g_state.lights.length; i++ )
+        { lightPositions_flattened                  .push( g_state.lights[ Math.floor(i/4) ].position[i%4] );
+          lightColors_flattened                     .push( g_state.lights[ Math.floor(i/4) ].color[i%4] );
+          lightAttenuations_flattened[ Math.floor(i/4) ] = g_state.lights[ Math.floor(i/4) ].attenuation;
+        }
+      gl.uniform4fv( gpu.lightPosition_loc,       lightPositions_flattened );
+      gl.uniform4fv( gpu.lightColor_loc,          lightColors_flattened );
+      gl.uniform1fv( gpu.attenuation_factor_loc,  lightAttenuations_flattened );
     }
 }
 
